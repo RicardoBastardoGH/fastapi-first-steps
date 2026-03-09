@@ -1,4 +1,6 @@
 from fastapi import Body, FastAPI, Query, HTTPException
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional
 
 app = FastAPI()
 
@@ -7,6 +9,40 @@ BLOG_POST = [
     {'id': 2, 'title': 'Segundo post', 'content': 'Segundo'},
     {'id': 3, 'title': 'Django vs FasAPI', 'content': 'Aca el contenido'},
 ]
+
+
+class PostBase(BaseModel):
+    title: str
+    content: Optional[str] = "Contenido por defecto"
+
+class PostCreate(BaseModel):
+    title: str = Field(
+        ...,
+        min_length=5,
+        max_length=100,
+        description="Titulo del post (minimo 3 caracteres, maximo 100)",
+        examples=["Mi primer post"]
+    ),
+    content: Optional[str] = Field(
+        default="Contenido no disponible",
+        min_length=10,
+        description="Contenido del post (minimo de 10 caracteres)",
+        examples=["Este es un contenido valido porque tiene 10 caracteres o mas 2"]
+    )
+    
+    @field_validator("title")
+    @classmethod
+    def not_allowed_title(cls, value:str) -> str:
+        if "spam" in value.lower():
+            raise ValueError("El titulo no puede contener la palabra: 'spam'")
+        return value
+    
+
+class PostUpdate(BaseModel):
+    title: str
+    content: Optional[str] = "Contenido por defecto"
+
+
 
 @app.get("/")
 def home():
@@ -32,7 +68,7 @@ def get_post(post_id: int, include_content: bool = Query(default=True, descripti
             if include_content:
                 return {'data': post}
             else:
-                return {'data': {
+                return {'data': {  
                     'id': post['id'],
                     'title': post['title']
                 }}
@@ -41,30 +77,20 @@ def get_post(post_id: int, include_content: bool = Query(default=True, descripti
 
 
 @app.post("/posts")
-def create_post(post : dict= Body(...)):
-    if "title" not in post or "content" not in post:
-        return {"error": "Title y content son requeridos"}
-    
-    if not str(post["title"]).strip():
-        # print(f'title: {str(post["title"]).strip()}')
-        return {"error": "Title no puede estar vacio"}
-    
+def create_post(post : PostCreate):
     new_id = (BLOG_POST[-1]["id"]+1) if BLOG_POST else 1
-    # # print(f'New id: {new_id}')
-    new_post = {"id": new_id, "title": post["title"], "content": post["content"]}
-    # # print(f'New post: {new_post}')
+    new_post = {"id": new_id, "title": post.title, "content": post.content}
     BLOG_POST.append(new_post)
-    
-    
     return {"message": "Post creado", "data": BLOG_POST}
 
 
 @app.put("/posts/{post_id}")
-def update_post(post_id: int, data: dict = Body(...)):
+def update_post(post_id: int, data: PostUpdate):
     for post in BLOG_POST:
         if post["id"] == post_id:
-            if "title" in data: post["title"] = data["title"]
-            if "content" in data: post["content"] = data["content"]
+            payload = data.model_dump(exclude_unset=True)
+            if "title" in payload: post["title"] = payload["title"]
+            if "content" in payload: post["content"] = payload["content"]
             return {"message":"Post actualizado", "data": post }
     raise HTTPException(status_code=404, detail="No se encontro el post")
     # return {"error": "No se encontro el post"}
