@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:17  # <--- Cambiamos de 15 a 17
+    container_name: postgres_personal_ai
+    restart: always 
+    env_file:
+      - .env  # <--- Docker leerá el usuario y password desde tu archivo .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432" # <--- CLAVE: Mapeamos el 5432 interno al 5433 externo
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
